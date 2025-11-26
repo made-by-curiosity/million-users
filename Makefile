@@ -1,0 +1,129 @@
+# By default, the Makefile will run in production mode.
+# To run in development mode, set the MODE variable to 'dev' when running make commands
+# Example: make laravel-init MODE=dev
+# Or change next line to MODE ?= dev to apply dev mode for all commands
+
+MODE ?= dev
+
+# 🐳 Docker Compose Commands
+
+up:
+	docker compose up -d --build
+
+down:
+	docker compose down
+
+fresh-build:
+	docker compose build --no-cache
+
+show-config:
+	docker compose config
+
+# 🧰 Laravel Artisan
+
+artisan:
+	docker compose run --rm artisan $(cmd)
+
+migrate:
+	@echo "Running migrations..."
+	@if [ "$(MODE)" = "prod" ]; then \
+		docker compose run --rm artisan migrate --force; \
+	else \
+		docker compose run --rm artisan migrate; \
+	fi
+
+cache:
+	@if [ "$(MODE)" = "prod" ]; then \
+		echo "Caching config, events, routes, and views..."; \
+		docker compose run --rm artisan optimize; \
+	else \
+		echo "Skipping cache commands in dev mode"; \
+	fi
+
+cache-clear:
+	@if [ "$(MODE)" = "prod" ]; then \
+		echo "Clearing cache..."; \
+		docker compose run --rm artisan optimize:clear; \
+	else \
+		echo "Skipping cache clear commands in dev mode"; \
+	fi
+
+generate-key:
+	docker compose run --rm artisan key:generate
+
+# 📦 Composer
+
+composer:
+	docker compose run --rm composer $(cmd)
+
+composer-install:
+	@echo "Installing composer dependencies..."
+	@if [ "$(MODE)" = "prod" ]; then \
+		docker compose run --rm composer install --no-dev --optimize-autoloader; \
+	else \
+		docker compose run --rm composer install; \
+	fi
+
+
+# Creating new project ---------------------------------------
+# We do this only in dev mode as in production it doesn't make sense
+
+# Ensure the application directory exists and has correct permissions
+# we need it because when we start containers they use this directory as a volume and if it doesn't exist it is getting created as a root user
+# which leads to permission issues when we try to access it from our user and we won't be able to create a new project inside it
+prepare-new-project:
+	@if [ -d "./application" ]; then \
+		echo "Folder exists. Deleting..."; \
+		sudo rm -rf ./application; \
+	fi; \
+	echo "Creating new folder..."; \
+	mkdir -p ./application; \
+	sudo chown -R $$(id -u):$$(id -g) ./application;
+
+create-project:
+	docker compose run --rm composer create-project laravel/laravel .
+
+# restart containers after creating a new project to apply changes
+new-project: prepare-new-project create-project
+
+
+# Fresh start ---------------------------------------
+
+init: prepare-env prepare-override fresh-build
+
+laravel-init: prepare-laravel-env composer-install generate-key migrate cache
+
+# To avoid issues with permissions we need to add UID and GID to the .env file, different servers may have different users, so this way we dynamically set them
+prepare-env:
+	@if [ ! -f .env ]; then \
+		cp .env.example .env && \
+		echo "UID=$$(id -u)" >> .env && \
+		echo "GID=$$(id -g)" >> .env && \
+		echo ".env created with UID and GID"; \
+	else \
+		echo ".env already exists"; \
+		echo "" >> .env && \
+		grep -q '^UID=' .env || echo "UID=$$(id -u)" >> .env; \
+		grep -q '^GID=' .env || echo "GID=$$(id -g)" >> .env; \
+		echo "UID/GID appended if missing"; \
+	fi
+
+prepare-override:
+	@if [ "$(MODE)" = "dev" ]; then \
+		if [ ! -f docker-compose.override.yml ]; then \
+			cp docker-compose.override.yml.example docker-compose.override.yml && \
+			echo "docker-compose.override.yml created"; \
+		else \
+			echo "docker-compose.override.yml already exists"; \
+		fi \
+	else \
+		echo "Skipping override file setup in prod mode"; \
+	fi
+
+prepare-laravel-env:
+	@if [ ! -f ./application/.env ]; then \
+		cp ./application/.env.example ./application/.env && \
+		echo "laravel .env created"; \
+	else \
+		echo "laravel .env already exists"; \
+	fi

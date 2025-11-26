@@ -1,0 +1,101 @@
+# 1. In docker compose v2 we don't have to specify the version, it will use the latest by default
+# 2. All variables that we use like ${SOMETHING} are defined in .env file that must be placed on the same level as this file
+#    ${SOMETHING:-something} means that if variable SOMETHING is not defined in .env file it will use the default value "something"
+# 3. In volumes we use - ./application:${LARAVEL_ROOT} to mount files in our system that are located in ./application directory to ${LARAVEL_ROOT} directory in the container
+#    ${LARAVEL_ROOT} is a default directory that we set as WORKDIR in Dockerfile for our laravel project files
+#    specifying this in volumes of our servers we make the same local files available in each container
+# 4. It's important to keep user as user: "1000:1000" everywhere to match the user and group of the files in our system that we mount to the containers to prevent permission issues
+
+# define shared config with aliases and anchors
+# this allows us to reuse the same configuration in multiple services
+# for example, we can use <<: *defaults to inherit the shared config
+x-defaults: &defaults
+  working_dir: ${LARAVEL_ROOT:-/application}
+  user: "${UID}:${GID}"
+  volumes:
+    - ./application:${LARAVEL_ROOT:-/application}
+
+x-php-fpm: &php-fpm
+  <<: *defaults
+  build:
+    context: ./docker/prod/php-fpm # specify in which directory to look for Dockerfile, directory is relative to the location of this docker-compose.yml file
+    dockerfile: Dockerfile
+    args:
+      UID: ${UID}
+      GID: ${GID}
+  pull_policy: build # always build the image from Dockerfile
+  depends_on:
+    - laravel-mysql
+
+x-base-php-env: &base-php-env
+  DB_CONNECTION: mysql
+  DB_HOST: laravel-mysql # the same as the service name of the mysql container, this is how we connect to the database
+  DB_DATABASE: ${DB_DATABASE:-laravel_db}
+  DB_USERNAME: ${DB_USER:-laravel_db_user}
+  DB_PASSWORD: ${DB_PASSWORD:-1234}
+  APP_ENV: production
+  APP_DEBUG: false
+  APP_NAME: ${PROJECT_NAME:-laravel-test}
+  APP_URL: ${APP_URL:-http://localhost}
+  TELESCOPE_ENABLED: ${TELESCOPE_ENABLED:-false}
+
+#main services for laravel application
+services:
+  laravel-webserver:
+    image: nginx:stable-alpine # get a stable lightweight version of nginx
+    container_name: ${PROJECT_NAME:-laravel-test}_webserver
+    working_dir: ${LARAVEL_ROOT:-/application}
+    environment:
+      VIRTUAL_HOST: ${VIRTUAL_HOST}
+      LETSENCRYPT_HOST: ${LETSENCRYPT_HOST}
+      LETSENCRYPT_EMAIL: ${LETSENCRYPT_EMAIL}
+    volumes:
+      - ./docker/prod/nginx/nginx.conf:/etc/nginx/conf.d/default.conf:ro # replace default.conf and make it read-only to prevent container write something to our original file
+      - ./application:${LARAVEL_ROOT:-/application}:ro
+    restart: ${DOCKER_RESTART_POLICY:-unless-stopped}
+    depends_on:
+      - laravel-php-fpm
+
+  laravel-php-fpm:
+    <<: *php-fpm
+    container_name: ${PROJECT_NAME:-laravel-test}_php-fpm
+    environment:
+      <<: *base-php-env
+    restart: ${DOCKER_RESTART_POLICY:-unless-stopped}
+
+  laravel-mysql:
+    image: mysql:8.0
+    container_name: ${PROJECT_NAME:-laravel-test}_db
+    environment:
+      MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASSWORD:-root}
+      MYSQL_DATABASE: ${DB_DATABASE:-laravel_db}
+      MYSQL_USER: ${DB_USER:-laravel_db_user}
+      MYSQL_PASSWORD: ${DB_PASSWORD:-1234}
+    volumes:
+      - mysql-data:/var/lib/mysql # this is a named volume that will be created by docker, it will store mysql data in a separate location on our system to persist data
+    restart: ${DOCKER_RESTART_POLICY:-unless-stopped}
+
+  composer:
+    <<: *defaults
+    image: composer:2
+    container_name: ${PROJECT_NAME:-laravel-test}_composer
+    entrypoint: [ "composer", "--ignore-platform-reqs" ]
+
+  artisan:
+    <<: *php-fpm
+    environment:
+      <<: *base-php-env
+    container_name: ${PROJECT_NAME:-laravel-test}_artisan
+    entrypoint: [ "php", "artisan" ] # when we run "docker compose run --rm artisan" we don't need to write "php artisan" after to execute commands, we can run command like this "docker compose run --rm artisan migrate" right away
+    command: [ "--version" ] # override the default command specified in Dockerfile
+
+volumes:
+  # named volume for mysql data that is necessary to create to use it in mysql service
+  mysql-data:
+    driver: local
+
+# if we haven't done this earlier we need to create this network via cli command before using it
+networks:
+  default:
+    name: ${EXTERNAL_NETWORK_NAME:-web-network}
+    external: true # use an external network that we created before, this is necessary to connect our containers to the same network for other services from different docker-compose files to be able to connect to them
