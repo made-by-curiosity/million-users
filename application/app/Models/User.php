@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Foundation\Auth\User as Authenticatable;
@@ -26,5 +27,15 @@ class User extends Authenticatable
     public function address(): HasOne
     {
         return $this->hasOne(UserAddress::class);
+    }
+
+    public function scopeSearch(Builder $query, $searchText): Builder
+    {
+        return $query->when($searchText, function($query, $searchText) {
+                $query->select('*')
+                    ->selectRaw("MATCH(first_name, last_name, email) AGAINST(? IN BOOLEAN MODE) AS relevance", [$searchText . '*'])
+                    ->whereRaw("MATCH(first_name, last_name, email) AGAINST(? IN BOOLEAN MODE)", [$searchText . '*'])
+                    ->orderByDesc('relevance');
+            });
     }
 }
