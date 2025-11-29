@@ -32,6 +32,9 @@ migrate:
 		docker compose run --rm artisan migrate; \
 	fi
 
+seed:
+	docker compose run --rm artisan db:seed
+
 cache:
 	@if [ "$(MODE)" = "prod" ]; then \
 		echo "Caching config, events, routes, and views..."; \
@@ -91,7 +94,7 @@ new-project: prepare-new-project create-project
 
 init: prepare-env prepare-override fresh-build
 
-laravel-init: prepare-laravel-env composer-install generate-key migrate cache
+laravel-init: prepare-laravel-env composer-install generate-key migrate seed cache
 
 # To avoid issues with permissions we need to add UID and GID to the .env file, different servers may have different users, so this way we dynamically set them
 prepare-env:
