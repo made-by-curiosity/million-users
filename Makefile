@@ -96,6 +96,9 @@ init: prepare-env prepare-override fresh-build
 
 laravel-init: prepare-laravel-env composer-install generate-key migrate seed cache
 
+vue-init: 
+	cd application && npm ci && npm run build;
+
 # To avoid issues with permissions we need to add UID and GID to the .env file, different servers may have different users, so this way we dynamically set them
 prepare-env:
 	@if [ ! -f .env ]; then \

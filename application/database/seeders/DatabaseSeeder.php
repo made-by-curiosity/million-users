@@ -9,7 +9,7 @@ class DatabaseSeeder extends Seeder
 {
     public function run(): void
     {
-        ini_set('memory_limit', '512M'); 
+        ini_set('memory_limit', '2048M'); 
         set_time_limit(600); // 10 minutes
 
         $this->seedUsersWithAddress();

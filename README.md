@@ -11,6 +11,9 @@ To run this project you need Docker and Docker Compose installed. Also to execut
    - ```docker compose run --rm composer install```
    - ```docker compose run --rm artisan key:generate```
    - ```docker compose run --rm artisan migrate```
+4. Run init commands for Vue part ```make vue-init``` or execute commands manually one by one from application directory:
+   - ```npm ci```
+   - ```npm run build```
 5. Laravel app is available on localhost:8888 (<-- default port, if you changed it in .env, then use the one you changed it for)
 6. After a fresh build use only ```make up``` and ```make down``` to run and stop the project
 
@@ -20,6 +23,4 @@ To run this project you need Docker and Docker Compose installed. Also to execut
 
 Frontend part:
 
-1. Go to the application/ directory and run ```npm ci```
-2. To make Vue app available start web server with ```npm run dev```
-3. Now Laravel application will be able to resolve Vue app and let you load requested pages. 
+To make Vue app available in dev mode start web server with ```npm run dev```
