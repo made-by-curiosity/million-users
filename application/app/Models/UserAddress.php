@@ -11,4 +11,11 @@ class UserAddress extends Model
     use HasFactory;
 
     public $timestamps = false;
+
+    protected $fillable = [
+        'country',
+        'city',
+        'post_code',
+        'address',
+    ];
 }
