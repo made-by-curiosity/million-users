@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Events\UserUpdated;
 use App\Models\User;
 use App\Services\StringService;
 use Illuminate\Http\Request;
@@ -101,6 +102,8 @@ class UserController extends Controller
             'post_code' => $addressData['post_code'] ?? '',
         ]);
         $user->touch(); // trigger updating updated_at if only address updated
+
+        event(new UserUpdated($user));
 
         return redirect()->route('users.index');
     }
