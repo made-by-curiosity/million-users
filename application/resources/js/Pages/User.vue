@@ -15,7 +15,9 @@ type Props = {
 
 const props = defineProps<Props>();
 
-const searchQuery = ref(props.searchText)
+const searchQuery = ref<string>(props.searchText)
+const selectedUser = ref<IUser | null>(null)
+const dialogRef = ref<HTMLDialogElement | null>(null)
 
 const headersConfig = [
     {
@@ -44,7 +46,7 @@ function getUserFullAddress(address: IUserAddress): string {
     return addressItems.filter(item => !!item).join(', ');
 }
 
-function getUserCellData(user: IUser) {
+function getUserCellData(user: IUser): Record<'data', any>[] {
     return [
         {
             data: user.id,
@@ -72,6 +74,16 @@ watch(searchQuery, (value) => {
     router.get('/users', searchText ? { search: searchText } : {}, { preserveState: true, replace: true });
     }, 300);
 });
+
+function showUserInfo(userId: number): void {
+  selectedUser.value = props.users.find(user => user.id === userId) ?? null;
+  dialogRef.value?.showModal()
+}
+
+function hideUserInfo(): void {
+  selectedUser.value = null;
+  dialogRef.value?.close()
+}
 </script>
 
 <template>
@@ -122,12 +134,12 @@ watch(searchQuery, (value) => {
           </tr>
         </thead>
         <tbody>
-          <tr v-for="user in users" :key="user.id" class="hover:bg-gray-100">
+          <tr v-for="user in users" :key="user.id" class="hover:bg-gray-100" @click="showUserInfo(user.id)">
             <td v-for="cellData in getUserCellData(user)" :key="cellData.data" class="px-4 py-2 text-gray-800 text-sm">
               {{ cellData.data }}
             </td>
             <td class="px-4 py-2">
-              <Link :href="`users/${user.id}/edit`" class="rounded-md hover:bg-gray-200">
+              <Link :href="`users/${user.id}/edit`" class="rounded-md hover:bg-gray-200" @click.stop>
                 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-4 h-4">
                   <path d="M21.731 2.269a2.625 2.625 0 00-3.712 0l-1.157 1.157 3.712 3.712 1.157-1.157a2.625 2.625 0 000-3.712zM19.513 8.199l-3.712-3.712-12.15 12.15a5.25 5.25 0 00-1.32 2.214l-.8 2.685a.75.75 0 00.933.933l2.685-.8a5.25 5.25 0 002.214-1.32L19.513 8.2z" />
                 </svg>
@@ -157,4 +169,20 @@ watch(searchQuery, (value) => {
       ></Link>
     </div>
   </div>
+
+  <dialog ref="dialogRef" closedby="any" class="bg-white rounded-md p-10 m-auto min-w-[300px]">
+    <p><strong>First name:</strong> {{ selectedUser?.first_name }}</p>
+    <p><strong>Last name:</strong> {{ selectedUser?.last_name }}</p>
+    <p><strong>Email:</strong> {{ selectedUser?.email }}</p>
+    <p><strong>Country:</strong> {{ selectedUser?.address.country }}</p>
+    <p><strong>City:</strong> {{ selectedUser?.address.city }}</p>
+    <p><strong>Postal code:</strong> {{ selectedUser?.address.post_code }}</p>
+    <p><strong>Street:</strong> {{ selectedUser?.address.address }}</p>
+    <form method="dialog" class="flex justify-center mt-6">
+      <button @click="hideUserInfo" class="flex justify-center items-center bg-gray-800 min-w-[150px] text-white text-sm font-bold px-4 py-2 rounded-md hover:bg-gray-700"
+      >
+      Close
+      </button>
+    </form>
+  </dialog>
 </template>
